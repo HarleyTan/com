@@ -1,3 +1,4 @@
+//An easier way to use http.Client
 package com
 
 import (
@@ -9,17 +10,23 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
-	//"net/url"
 )
 
 type HttpClient struct {
 	c       *http.Client
 	cookies []*http.Cookie
 	jar     *cookiejar.Jar
-	convGbk bool
-	ua      string ///user agent
+	ua      string //user agent
+
+	//编码转换相关处理
+	conv    bool //conv between utf-8 and charset
+	charset string
 	enc     mahonia.Encoder
 	dec     mahonia.Decoder
+
+	//链接转向相关处理
+	redirect    bool   //是否转向了。每次Get之前置为false
+	redirectUrl string //转向后的链接
 }
 
 func NewHttpClient() (this *HttpClient) {
@@ -27,23 +34,28 @@ func NewHttpClient() (this *HttpClient) {
 	this = &HttpClient{}
 
 	this.cookies = nil
-	//var err error;
 	this.jar, _ = cookiejar.New(nil)
 
-	c := &http.Client{Jar: this.jar}
-	this.c = c
+	this.c = &http.Client{Jar: this.jar, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		this.redirect = true
+		this.redirectUrl = req.URL.String()
+		//return errors.New("Redirected!")
+		return nil
+	}}
 
 	this.ua = "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)" //默认IE6
 
-	this.convGbk = true
-	this.enc = mahonia.NewEncoder("GBK")
-	this.dec = mahonia.NewDecoder("GBK")
+	this.conv = false
 
 	return this
 }
 
-func (this *HttpClient) SetConvGbk(b bool) {
-	this.convGbk = b
+//you should set it only once!
+func (this *HttpClient) SetCharSet(charset string) {
+	this.conv = true
+	this.charset = charset
+	this.enc = mahonia.NewEncoder(charset)
+	this.dec = mahonia.NewDecoder(charset)
 }
 
 func (this *HttpClient) SetUa(ua string) {
@@ -51,20 +63,21 @@ func (this *HttpClient) SetUa(ua string) {
 }
 
 func (this *HttpClient) Enc(in string) string {
-	if this.convGbk {
+	if this.conv {
 		return this.enc.ConvertString(in)
 	}
 	return in
 }
 
 func (this *HttpClient) Dec(in string) string {
-	if this.convGbk {
+	if this.conv {
 		return this.dec.ConvertString(in)
 	}
 	return in
 }
 
 func (this *HttpClient) Get(url string) (page string, err error) {
+	this.clearRedirect()
 	//自动转化为GB2312编码
 	gbkUrl := this.Enc(url)
 
@@ -97,6 +110,7 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 }
 
 func (this *HttpClient) Post(url, postdata string) (page string, err error) {
+	this.clearRedirect()
 	//自动转化为GB2312编码
 	gbkUrl := this.Enc(url)
 	gbkPostdata := this.Enc(postdata)
@@ -143,7 +157,7 @@ func (this *HttpClient) PostValues(surl string, postDict map[string]string) (pag
 }
 */
 func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Buffer) (page string, err error) {
-
+	this.clearRedirect()
 	//log4go.Debug("HttpClient.PostMultipart(%s,w)", u)
 	//自动转化为GB2312编码
 	gbkUrl := this.Enc(u)
@@ -178,91 +192,10 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 
 }
 
-/*
-func (this *HttpClient) getUrlRespHtml(strUrl string, postDict map[string]string) (page string, status string) {
-
-	log4go.Debug("getUrlRespHtml, strUrl=%s", strUrl)
-	log4go.Debug("postDict=%s", postDict)
-
-	var httpReq *http.Request
-	//var newReqErr error
-	if nil == postDict {
-		log4go.Debug("is GET")
-		//httpReq, newReqErr = http.NewRequest("GET", strUrl, nil)
-		httpReq, _ = http.NewRequest("GET", strUrl, nil)
-		// ...
-		//httpReq.Header.Add("If-None-Match", `W/"wyzzy"`)
-	} else {
-		log4go.Debug("is POST")
-		postValues := url.Values{}
-		for postKey, PostValue := range postDict {
-			postValues.Set(postKey, PostValue)
-		}
-		log4go.Debug("postValues=%s", postValues)
-		postDataStr := postValues.Encode()
-		log4go.Debug("postDataStr=%s", postDataStr)
-		postDataBytes := []byte(postDataStr)
-		log4go.Debug("postDataBytes=%s", postDataBytes)
-		postBytesReader := bytes.NewReader(postDataBytes)
-		//httpReq, newReqErr = http.NewRequest("POST", strUrl, postBytesReader)
-		httpReq, _ = http.NewRequest("POST", strUrl, postBytesReader)
-		//httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-		httpReq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	}
-
-	httpResp, err := this.c.Do(httpReq)
-	// ...
-
-	//httpResp, err := http.Get(strUrl)
-	//log4go.Debug("http.Get done")
-	if err != nil {
-		log4go.Warn("http get strUrl=%s response error=%s\n", strUrl, err.Error())
-	}
-	log4go.Debug("httpResp.Header=%s", httpResp.Header)
-	log4go.Debug("httpResp.Status=%s", httpResp.Status)
-
-	status = httpResp.Status
-
-	defer httpResp.Body.Close()
-	// log4go.Debug("defer httpResp.Body.Close done")
-
-	body, errReadAll := ioutil.ReadAll(httpResp.Body)
-	//log4go.Debug("ioutil.ReadAll done")
-	if errReadAll != nil {
-		log4go.Warn("get response for strUrl=%s got error=%s\n", strUrl, errReadAll.Error())
-	}
-	//log4go.Debug("body=%s\n", body)
-
-	//this.cookies = httpResp.Cookies()
-	//gCurCookieJar = this.Jar;
-	this.cookies = this.jar.Cookies(httpReq.URL)
-	//log4go.Debug("httpResp.Cookies done")
-
-	//respHtml = "just for test log ok or not"
-	page = string(body)
-	//log4go.Debug("httpResp body []byte to string done")
-
-	return
+func (p *HttpClient) clearRedirect() {
+	p.redirect = false
+	p.redirectUrl = ""
 }
-*/
-
-//func dbgPrintCurCookies(cookie []*http.Cookie) {
-//	var cookieNum int = len(cookie)
-//	log4go.Debug("cookieNum=%d", cookieNum)
-//	for i := 0; i < cookieNum; i++ {
-//		var curCk *http.Cookie = cookie[i]
-//		//log4go.Debug("curCk.Raw=%s", curCk.Raw)
-//		log4go.Debug("------ Cookie [%d]------", i)
-//		log4go.Debug("Name\t\t=%s", curCk.Name)
-//		log4go.Debug("Value\t=%s", curCk.Value)
-//		log4go.Debug("Path\t\t=%s", curCk.Path)
-//		log4go.Debug("Domain\t=%s", curCk.Domain)
-//		log4go.Debug("Expires\t=%s", curCk.Expires)
-//		log4go.Debug("RawExpires\t=%s", curCk.RawExpires)
-//		log4go.Debug("MaxAge\t=%d", curCk.MaxAge)
-//		log4go.Debug("Secure\t=%t", curCk.Secure)
-//		log4go.Debug("HttpOnly\t=%t", curCk.HttpOnly)
-//		log4go.Debug("Raw\t\t=%s", curCk.Raw)
-//		log4go.Debug("Unparsed\t=%s", curCk.Unparsed)
-//	}
-//}
+func (p *HttpClient) CheckRedirect() (b bool, url string) {
+	return p.redirect, p.redirectUrl
+}
