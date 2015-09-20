@@ -3,13 +3,15 @@ package com
 
 import (
 	"bytes"
-	"code.google.com/p/mahonia"
 	"errors"
 	"fmt"
+	//	"github.com/alecthomas/log4go"
+	"github.com/axgle/mahonia"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	//	"strings"
 )
 
 type HttpClient struct {
