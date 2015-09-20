@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	//	"net/url"
 	//	"strings"
 	"compress/gzip"
 	"io"
@@ -94,14 +95,14 @@ func (this *HttpClient) Dec(in string) string {
 	return in
 }
 
-func (this *HttpClient) Get(url string) (page string, err error) {
+func (this *HttpClient) Get(surl string) (page string, err error) {
 	this.clearRedirect()
 	//自动转化为GB2312编码
-	gbkUrl := this.Enc(url)
+	gbkUrl := this.Enc(surl)
 
 	req, err := http.NewRequest("GET", gbkUrl, nil)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),NewRequest error:%s", url, err.Error()))
+		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),NewRequest error:%s", surl, err.Error()))
 		return
 	}
 
@@ -112,7 +113,7 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 	resp, err := this.c.Do(req)
 
 	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Response error:%s", url, err.Error()))
+		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Response error:%s", surl, err.Error()))
 		return
 	}
 
@@ -126,7 +127,7 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 		case "gzip":
 			reader, e := gzip.NewReader(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", surl, e.Error()))
 				return
 			}
 			for {
@@ -145,7 +146,7 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 		default:
 			bodyByte, e := ioutil.ReadAll(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", surl, e.Error()))
 				return
 			}
 			body = string(bodyByte)
@@ -163,10 +164,10 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 	return
 }
 
-func (this *HttpClient) Post(url, postdata string) (page string, err error) {
+func (this *HttpClient) Post(surl, postdata string) (page string, err error) {
 	this.clearRedirect()
 	//自动转化为GB2312编码
-	gbkUrl := this.Enc(url)
+	gbkUrl := this.Enc(surl)
 	gbkPostdata := this.Enc(postdata)
 
 	req, _ := http.NewRequest("POST", gbkUrl, bytes.NewReader([]byte(gbkPostdata)))
@@ -178,7 +179,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 	resp, err := this.c.Do(req)
 
 	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.Post(%s,%s),Response error:%s", url, postdata, err.Error()))
+		err = errors.New(fmt.Sprintf("HttpClient.Post(%s,%s),Response error:%s", surl, postdata, err.Error()))
 		return
 	}
 	//	log4go.Debug("Response code:%d status:%s", resp.StatusCode, resp.Status)
@@ -193,7 +194,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 		case "gzip":
 			reader, e := gzip.NewReader(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read gzip body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read gzip body error:%s", surl, e.Error()))
 				return
 			}
 			for {
@@ -212,7 +213,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 		default:
 			bodyByte, e := ioutil.ReadAll(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read body error:%s", surl, e.Error()))
 				return
 			}
 			body = string(bodyByte)
@@ -224,7 +225,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 	page = this.Dec(body)
 
 	if this.Debug {
-		log.Printf("================\nHttpClient.Post(%s,%s)\nStatusCode:%d\nContent:\n%s\n================\n", url, postdata, resp.StatusCode, page)
+		log.Printf("================\nHttpClient.Post(%s,%s)\nStatusCode:%d\nContent:\n%s\n================\n", surl, postdata, resp.StatusCode, page)
 	}
 	return
 }
@@ -316,6 +317,6 @@ func (p *HttpClient) clearRedirect() {
 	p.redirect = false
 	p.redirectUrl = ""
 }
-func (p *HttpClient) CheckRedirect() (b bool, url string) {
+func (p *HttpClient) CheckRedirect() (b bool, surl string) {
 	return p.redirect, p.redirectUrl
 }
