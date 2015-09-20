@@ -14,7 +14,7 @@ import (
 	//	"strings"
 	"compress/gzip"
 	"io"
-	"log"
+	//	"log"
 )
 
 type HttpClient struct {
@@ -145,11 +145,11 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 		}
 	}
 
-	log.Println(body)
+	//log.Println(body)
 
 	this.cookies = this.jar.Cookies(req.URL)
 
-	page = this.Dec(string(body))
+	page = this.Dec(body)
 	return
 }
 
@@ -175,15 +175,43 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.Post(%s,%s),Read body error:%s", url, postdata, err.Error()))
-		return
+	var body string
+
+	if resp.StatusCode == 200 {
+
+		switch resp.Header.Get("Content-Encoding") {
+		case "gzip":
+			reader, e := gzip.NewReader(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", url, e.Error()))
+				return
+			}
+			for {
+				buf := make([]byte, 1024)
+				n, err := reader.Read(buf)
+
+				if err != nil && err != io.EOF {
+					panic(err)
+				}
+
+				if n == 0 {
+					break
+				}
+				body += string(buf)
+			}
+		default:
+			bodyByte, e := ioutil.ReadAll(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", url, e.Error()))
+				return
+			}
+			body = string(bodyByte)
+		}
 	}
 
 	this.cookies = this.jar.Cookies(req.URL)
 
-	page = this.Dec(string(body))
+	page = this.Dec(body)
 
 	//log4go.Finest("HttpClient.Post(%s,%s) returns:", url, postdata)
 	//log4go.Finest(page)
@@ -225,15 +253,43 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.PostMultipart ,Read body error:%s", err.Error()))
-		return
+	var body string
+
+	if resp.StatusCode == 200 {
+
+		switch resp.Header.Get("Content-Encoding") {
+		case "gzip":
+			reader, e := gzip.NewReader(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", u, e.Error()))
+				return
+			}
+			for {
+				buf := make([]byte, 1024)
+				n, err := reader.Read(buf)
+
+				if err != nil && err != io.EOF {
+					panic(err)
+				}
+
+				if n == 0 {
+					break
+				}
+				body += string(buf)
+			}
+		default:
+			bodyByte, e := ioutil.ReadAll(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", u, e.Error()))
+				return
+			}
+			body = string(bodyByte)
+		}
 	}
 
 	this.cookies = this.jar.Cookies(req.URL)
 
-	page = this.Dec(string(body))
+	page = this.Dec(body)
 
 	//log4go.Finest("HttpClient.PostMultipart to url :%s returns :", u)
 	//log4go.Finest(page)
