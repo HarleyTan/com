@@ -110,6 +110,14 @@ func (this *HttpClient) Get(surl string) (page string, err error) {
 		req.Header.Add(k, v[0])
 	}
 
+	if this.Debug {
+		headerStr := ""
+		for k, v := range req.Header {
+			headerStr += fmt.Sprintf("%s:%s\n", k, v)
+		}
+		log.Printf("Header======\n%sHeader======\n", headerStr)
+	}
+
 	resp, err := this.c.Do(req)
 
 	if err != nil {
@@ -175,6 +183,14 @@ func (this *HttpClient) Post(surl, postdata string) (page string, err error) {
 		req.Header.Add(k, v[0])
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	if this.Debug {
+		headerStr := ""
+		for k, v := range req.Header {
+			headerStr += fmt.Sprintf("%s:%s\n", k, v)
+		}
+		log.Printf("Header======\n%sHeader======\n", headerStr)
+	}
 
 	resp, err := this.c.Do(req)
 
@@ -254,6 +270,15 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 		req.Header.Add(k, v[0])
 	}
 	req.Header.Add("Content-Type", w.FormDataContentType())
+
+	if this.Debug {
+		headerStr := ""
+		for k, v := range req.Header {
+			headerStr += fmt.Sprintf("%s:%s\n", k, v)
+		}
+		log.Printf("Header======\n%sHeader======\n", headerStr)
+	}
+
 	//log4go.Finest("PostMultipart Content-Type: %s", w.FormDataContentType())
 	resp, err := this.c.Do(req)
 
