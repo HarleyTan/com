@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	//	"strings"
+	"compress/gzip"
+	"io"
 	"log"
 )
 
@@ -49,7 +51,7 @@ func NewHttpClient() (this *HttpClient) {
 
 	this.Header = make(http.Header)
 	this.Header.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-	//this.Header.Add("Accept-Encoding", "gzip,deflate,sdch")
+	this.Header.Add("Accept-Encoding", "gzip,deflate,sdch")
 	this.Header.Add("Accept-Language", "zh-CN,zh;q=0.8")
 	this.Header.Add("Connection", "keep-alive")
 	this.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36")
@@ -109,12 +111,41 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	log.Println(string(body))
-	if err != nil {
-		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", url, err.Error()))
-		return
+	var body string
+
+	if resp.StatusCode == 200 {
+
+		switch resp.Header.Get("Content-Encoding") {
+		case "gzip":
+			reader, e := gzip.NewReader(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", url, e.Error()))
+				return
+			}
+			for {
+				buf := make([]byte, 1024)
+				n, err := reader.Read(buf)
+
+				if err != nil && err != io.EOF {
+					panic(err)
+				}
+
+				if n == 0 {
+					break
+				}
+				body += string(buf)
+			}
+		default:
+			bodyByte, e := ioutil.ReadAll(resp.Body)
+			if e != nil {
+				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", url, e.Error()))
+				return
+			}
+			body = string(bodyByte)
+		}
 	}
+
+	log.Println(body)
 
 	this.cookies = this.jar.Cookies(req.URL)
 
