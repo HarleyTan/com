@@ -18,7 +18,8 @@ type HttpClient struct {
 	c       *http.Client
 	cookies []*http.Cookie
 	jar     *cookiejar.Jar
-	ua      string //user agent
+
+	Header http.Header
 
 	//编码转换相关处理
 	conv    bool //conv between utf-8 and charset
@@ -45,7 +46,12 @@ func NewHttpClient() (this *HttpClient) {
 		return nil
 	}}
 
-	this.ua = "Mozilla/5.0 (Windows; U; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727)" //默认IE6
+	this.Header = make(http.Header)
+	this.Header.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+	this.Header.Add("Accept-Encoding", "gzip,deflate,sdch")
+	this.Header.Add("Accept-Language", "zh-CN,zh;q=0.8")
+	this.Header.Add("Connection", "keep-alive")
+	this.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36")
 
 	this.conv = false
 
@@ -61,7 +67,7 @@ func (this *HttpClient) SetCharSet(charset string) {
 }
 
 func (this *HttpClient) SetUa(ua string) {
-	this.ua = ua
+	this.Header.Set("User-Agent", ua)
 }
 
 func (this *HttpClient) Enc(in string) string {
@@ -88,7 +94,10 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 		err = errors.New(fmt.Sprintf("HttpClient.Get(%s),NewRequest error:%s", url, err.Error()))
 		return
 	}
-	req.Header.Add("User-Agent", this.ua)
+
+	for k, v := range this.Header {
+		req.Header.Add(k, v[0])
+	}
 
 	resp, err := this.c.Do(req)
 
@@ -118,8 +127,11 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 	gbkPostdata := this.Enc(postdata)
 
 	req, _ := http.NewRequest("POST", gbkUrl, bytes.NewReader([]byte(gbkPostdata)))
+	for k, v := range this.Header {
+		req.Header.Add(k, v[0])
+	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("User-Agent", this.ua)
+
 	resp, err := this.c.Do(req)
 
 	if err != nil {
@@ -165,7 +177,9 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 	gbkUrl := this.Enc(u)
 
 	req, _ := http.NewRequest("POST", gbkUrl, b)
-	req.Header.Add("User-Agent", this.ua)
+	for k, v := range this.Header {
+		req.Header.Add(k, v[0])
+	}
 	req.Header.Add("Content-Type", w.FormDataContentType())
 	//log4go.Finest("PostMultipart Content-Type: %s", w.FormDataContentType())
 	resp, err := this.c.Do(req)
