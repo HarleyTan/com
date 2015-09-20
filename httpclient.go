@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	//	"github.com/alecthomas/log4go"
 	"github.com/axgle/mahonia"
 	"io/ioutil"
 	"mime/multipart"
@@ -14,7 +13,7 @@ import (
 	//	"strings"
 	"compress/gzip"
 	"io"
-	//	"log"
+	"log"
 )
 
 type HttpClient struct {
@@ -23,6 +22,7 @@ type HttpClient struct {
 	jar     *cookiejar.Jar
 
 	Header http.Header
+	ua     string
 
 	//编码转换相关处理
 	conv    bool //conv between utf-8 and charset
@@ -33,6 +33,8 @@ type HttpClient struct {
 	//链接转向相关处理
 	redirect    bool   //是否转向了。每次Get之前置为false
 	redirectUrl string //转向后的链接
+
+	Debug bool //调试开关，打开输出日志
 }
 
 func NewHttpClient() (this *HttpClient) {
@@ -48,17 +50,21 @@ func NewHttpClient() (this *HttpClient) {
 		//return errors.New("Redirected!")
 		return nil
 	}}
+	this.ua = "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"
 
+	this.ResetHeader()
+	this.conv = false
+
+	return this
+}
+
+func (this *HttpClient) ResetHeader() {
 	this.Header = make(http.Header)
 	this.Header.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
 	this.Header.Add("Accept-Encoding", "gzip,deflate,sdch")
 	this.Header.Add("Accept-Language", "zh-CN,zh;q=0.8")
 	this.Header.Add("Connection", "keep-alive")
-	this.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36")
-
-	this.conv = false
-
-	return this
+	this.Header.Add("User-Agent", this.ua)
 }
 
 //you should set it only once!
@@ -70,6 +76,7 @@ func (this *HttpClient) SetCharSet(charset string) {
 }
 
 func (this *HttpClient) SetUa(ua string) {
+	this.ua = ua
 	this.Header.Set("User-Agent", ua)
 }
 
@@ -150,6 +157,9 @@ func (this *HttpClient) Get(url string) (page string, err error) {
 	this.cookies = this.jar.Cookies(req.URL)
 
 	page = this.Dec(body)
+	if this.Debug {
+		log.Printf("================\nStatusCode:%d\nContent:\n%s\n================\n", resp.StatusCode, page)
+	}
 	return
 }
 
@@ -183,7 +193,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 		case "gzip":
 			reader, e := gzip.NewReader(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read gzip body error:%s", url, e.Error()))
 				return
 			}
 			for {
@@ -202,7 +212,7 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 		default:
 			bodyByte, e := ioutil.ReadAll(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", url, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.Post(%s),Read body error:%s", url, e.Error()))
 				return
 			}
 			body = string(bodyByte)
@@ -213,8 +223,9 @@ func (this *HttpClient) Post(url, postdata string) (page string, err error) {
 
 	page = this.Dec(body)
 
-	//log4go.Finest("HttpClient.Post(%s,%s) returns:", url, postdata)
-	//log4go.Finest(page)
+	if this.Debug {
+		log.Printf("================\nHttpClient.Post(%s,%s)\nStatusCode:%d\nContent:\n%s\n================\n", url, postdata, resp.StatusCode, page)
+	}
 	return
 }
 
@@ -261,7 +272,7 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 		case "gzip":
 			reader, e := gzip.NewReader(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read gzip body error:%s", u, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.PostMultipart(%s),Read gzip body error:%s", u, e.Error()))
 				return
 			}
 			for {
@@ -280,7 +291,7 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 		default:
 			bodyByte, e := ioutil.ReadAll(resp.Body)
 			if e != nil {
-				err = errors.New(fmt.Sprintf("HttpClient.Get(%s),Read body error:%s", u, e.Error()))
+				err = errors.New(fmt.Sprintf("HttpClient.PostMultipart(%s),Read body error:%s", u, e.Error()))
 				return
 			}
 			body = string(bodyByte)
@@ -293,6 +304,10 @@ func (this *HttpClient) PostMultipart(u string, w *multipart.Writer, b *bytes.Bu
 
 	//log4go.Finest("HttpClient.PostMultipart to url :%s returns :", u)
 	//log4go.Finest(page)
+
+	if this.Debug {
+		log.Printf("================\nHttpClient.PostMultipart(%s)\nStatusCode:%d\nContent:\n%s\n================\n", u, resp.StatusCode, page)
+	}
 	return
 
 }
